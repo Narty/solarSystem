@@ -8,7 +8,7 @@
 #include "raaUtilities.h"
 
 float g_afSphereAmbient[]={0.1f, 0.3f, 0.1f, 1.0f};
-float g_afSphereDiffuse[]={0.1f, 0.8f, 0.1f, 1.0f};
+//float g_afSphereDiffuse[]={0.1f, 0.8f, 0.1f, 1.0f};
 float g_afSphereSpecular[]={1.0f, 1.0f, 1.0f, 1.0f};
 float g_fSphereShininess=5.0f;
 
@@ -47,16 +47,17 @@ void gridDraw( unsigned long &ulGrid )
 	glCallList(ulGrid);
 }
 
-void drawSphere( float fRadius, int iSlices, int iSegments )
+void drawSphere( float fRadius, int iSlices, int iSegments, float x, float y, float z, float colour[4] )
 {
 	glPushMatrix();
 	glPushAttrib(GL_ALL_ATTRIB_BITS);
 
 	glEnable(GL_LIGHTING);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, g_afSphereAmbient);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, g_afSphereDiffuse);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, colour);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, g_afSphereSpecular);
 	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, g_fSphereShininess);
+	glTranslatef(x, y, z);
 
 	glutSolidSphere(fRadius, iSlices, iSegments);
 	glPopAttrib();
