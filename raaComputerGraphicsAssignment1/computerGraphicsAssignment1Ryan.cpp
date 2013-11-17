@@ -11,6 +11,10 @@
 #include "raaMaths/raaVector.h"
 #include "raaMaths/raaMatrix.h"
 
+#define DRAG 0.999999f
+#define GRAVITY 800.0f
+#define TIME 0.0166666666666667
+
 raaCameraInput g_Input;
 raaCamera g_Camera;
 unsigned long g_ulGrid=0;
@@ -23,16 +27,17 @@ struct planet
 	planet *m_pNext;
 	planet *m_pPrev;
 	float m_fSize;
-	float m_afVel[4];
+	float m_afStartVel[4];
+	float m_afEndVel[4];
 	float m_fMass;
 	float m_afCol[4]; //x,y,z,1
-	float m_afPos[4]; //x,y,z,0
+	float m_afStartPos[4]; //x,y,z,0
+	float m_afEndPos[4]; //x,y,z,0
 	float m_afForce[4]; //x,y,z,0
 	//float m_afForce;
 };
 planet *g_pHead=0;
 planet *g_pTail=0;
-
 
 void gridInit();
 void display();
@@ -45,8 +50,8 @@ void sKeyboardUp(int iC, int iXPos, int iYPos);
 void mouse(int iKey, int iEvent, int iXPos, int iYPos);
 void mouseMotion();
 void myInit();
-void updateVelocity();
-void applyAcceleration();
+void calculateVelocity();
+void calculateAcceleration();
 
 planet* createNewPlanet(char data);
 planet* deletePlanet(planet *pPlanet);
@@ -58,6 +63,7 @@ bool destroy(planet* pPlanet);
 void insertBefore(planet* pPlanet, planet* pTarget);
 void insertAfter(planet* pPlanet, planet* pTarget);
 bool remove(planet* pPlanet);
+bool calculateMotion;
 
 unsigned int g_uiLastTime=0;
 
@@ -70,16 +76,19 @@ planet* createNewPlanet()
 
 	// initialise data
 	pPlanet->m_fSize = randFloat(20.0f, 200.0f);
-	vecInit(pPlanet->m_afVel);
-	vecSet(randFloat(-10.0f, 10.0f), randFloat(-10.0f, 10.0f), randFloat(-10.0f, 10.0f), pPlanet->m_afVel);
-	pPlanet->m_fMass = randFloat(5.0f,10.0f);
+	vecInit(pPlanet->m_afStartVel);
+	vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afStartVel);
+	vecInit(pPlanet->m_afEndVel);
+	pPlanet->m_fMass = randFloat(100.0f,1000.0f);
 	vecInit(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
-	vecInit(pPlanet->m_afPos);
-	vecSet(randFloat(-5000.0f, 5000.0f), randFloat(-5000.0f, 5000.0f), randFloat(-5000.0f, 5000.0f), pPlanet->m_afPos);
+	vecInit(pPlanet->m_afStartPos);
+	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
+	vecInit(pPlanet->m_afEndPos);
 	//pPlanet->m_afForce = randFloat(-100.0f, 100.0f);
 	vecInit(pPlanet->m_afForce);
-	vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
+	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
+	vecSet(50.0f, 50.0f, 50.0f, pPlanet->m_afForce);
 
 	return pPlanet;
 }
@@ -93,12 +102,14 @@ planet* createNewStar()
 
 	// initialise data
 	pStar->m_fSize = 600.0f;
-	vecInit(pStar->m_afVel);
-	pStar->m_fMass = 10000.0f;
+	vecInit(pStar->m_afStartVel);
+	vecInit(pStar->m_afEndVel);
+	pStar->m_fMass = 90000.0f;
 	vecInit(pStar->m_afCol);
 	vecSet(1.0f, 1.0f, 0.0f, pStar->m_afCol);
 	pStar->m_afCol[3] = 1.0f;
-	vecInit(pStar->m_afPos);
+	vecInit(pStar->m_afStartPos); // set to world centre
+	vecInit(pStar->m_afEndPos);
 	//pStar->m_afForce = 0.0f;
 	vecInit(pStar->m_afForce);
 
@@ -116,10 +127,10 @@ planet* deletePlanet(planet *pPlanet)
 
 		// clean up data
 		pPlanet->m_fSize = 0;
-		vecInitDVec(pPlanet->m_afVel);
+		vecInitDVec(pPlanet->m_afStartVel);
 		pPlanet->m_fMass = 0;
 		vecInitDVec(pPlanet->m_afCol);
-		vecInitDVec(pPlanet->m_afPos);
+		vecInitDVec(pPlanet->m_afStartPos);
 		//pPlanet->m_afForce = 0;
 		vecInitDVec(pPlanet->m_afForce);
 
@@ -313,7 +324,7 @@ void display()
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afPos[0], currentPlanet->m_afPos[1], currentPlanet->m_afPos[2], currentPlanet->m_afCol);
+		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2], currentPlanet->m_afCol);
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
@@ -324,8 +335,11 @@ void display()
 }
 void idle()
 {
-	applyAcceleration();
-	updateVelocity();
+	if(calculateMotion) {
+		calculateAcceleration();
+		calculatePosition();
+		calculateVelocity();
+	}
 	mouseMotion();
 	glutPostRedisplay();
 }
@@ -424,27 +438,51 @@ void mouseMotion()
 	glutPostRedisplay();
 }
 
-void updateVelocity()
+void calculatePosition()
 {
+	//s=p+(ut+1/2(at2))
+	
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		currentPlanet->m_afPos[0] += currentPlanet->m_afVel[0];
-		currentPlanet->m_afPos[1] += currentPlanet->m_afVel[1];
-		currentPlanet->m_afPos[2] += currentPlanet->m_afVel[2];
+		vecScalarProduct(currentPlanet->m_afStartVel, TIME, currentPlanet->m_afEndVel);
+		currentPlanet->m_afEndPos = currentPlanet->m_afStartPos + (afResult + 0.5f * (2 * (TIME * TIME)));
+
 		currentPlanet = currentPlanet->m_pNext;
 	}
 }
 
-void applyAcceleration()
+void calculateVelocity()
 {
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		currentPlanet->m_afVel[0] += currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
-		currentPlanet->m_afVel[1] += currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
-		currentPlanet->m_afVel[2] += currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
+		//currentPlanet->m_afStartPos[0] += currentPlanet->m_afStartVel[0];
+		//currentPlanet->m_afStartPos[1] += currentPlanet->m_afStartVel[1];
+		//currentPlanet->m_afStartPos[2] += currentPlanet->m_afStartVel[2];
+		//v= (s-p)/t
+
 		currentPlanet = currentPlanet->m_pNext;
+	}
+}
+
+void calculateAcceleration()
+{
+	planet *currentPlanet = g_pHead;
+	while(currentPlanet)
+	{
+		currentPlanet->m_afStartVel[0] += currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
+		currentPlanet->m_afStartVel[1] += currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
+		currentPlanet->m_afStartVel[2] += currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
+		currentPlanet = currentPlanet->m_pNext;
+	}
+}
+
+void menu(int op)
+{
+	switch(op) {
+	case 1:
+		calculateMotion = !calculateMotion;
 	}
 }
 
@@ -461,6 +499,12 @@ void myInit()
 	{
 		pushTail(createNewPlanet());
 	}
+
+	calculateMotion = true;
+
+	glutCreateMenu(menu);
+	glutAddMenuEntry("Toggle motion", 1);
+	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
 	float afGridColour[]={1.0f, 0.1f, 0.3f, 1.0f};
 	gridInit(g_ulGrid, afGridColour, -50, 50, 500.0f);
