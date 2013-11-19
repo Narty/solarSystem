@@ -35,6 +35,7 @@ struct planet
 	float m_afEndPos[4]; //x,y,z,0
 	float m_afForce[4]; //x,y,z,0
 	//float m_afForce;
+	float m_afAcceleration[4]; //x,y,z,0
 };
 planet *g_pHead=0;
 planet *g_pTail=0;
@@ -50,8 +51,10 @@ void sKeyboardUp(int iC, int iXPos, int iYPos);
 void mouse(int iKey, int iEvent, int iXPos, int iYPos);
 void mouseMotion();
 void myInit();
+void calculatePosition();
 void calculateVelocity();
 void calculateAcceleration();
+void calculateForces(); 
 
 planet* createNewPlanet(char data);
 planet* deletePlanet(planet *pPlanet);
@@ -88,7 +91,8 @@ planet* createNewPlanet()
 	//pPlanet->m_afForce = randFloat(-100.0f, 100.0f);
 	vecInit(pPlanet->m_afForce);
 	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
-	vecSet(50.0f, 50.0f, 50.0f, pPlanet->m_afForce);
+	vecSet(50000.0f, 50000.0f, 50000.0f, pPlanet->m_afForce);
+	vecInit(pPlanet->m_afAcceleration);
 
 	return pPlanet;
 }
@@ -112,6 +116,7 @@ planet* createNewStar()
 	vecInit(pStar->m_afEndPos);
 	//pStar->m_afForce = 0.0f;
 	vecInit(pStar->m_afForce);
+	vecInit(pStar->m_afAcceleration);
 
 	return pStar;
 }
@@ -336,6 +341,7 @@ void display()
 void idle()
 {
 	if(calculateMotion) {
+		calculateForces();
 		calculateAcceleration();
 		calculatePosition();
 		calculateVelocity();
@@ -438,15 +444,51 @@ void mouseMotion()
 	glutPostRedisplay();
 }
 
+void calculateForces()
+{
+	float afBigF[4];
+	planet *currentPlanet = g_pHead;
+	currentPlanet = currentPlanet->m_pNext; //skip the star
+	while(currentPlanet)
+	{
+		vecInitDVec(afBigF);
+		float afLittleF[4];
+		planet *currentOtherPlanet = g_pHead;
+		currentOtherPlanet = currentOtherPlanet->m_pNext; //skip the star
+		while(currentOtherPlanet)
+		{
+			float afResult;
+			if(currentPlanet != currentOtherPlanet) {
+				afResult = vecDistance(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos); // distance between the 2 bodies
+				afResult = GRAVITY * (currentPlanet->m_fMass * currentOtherPlanet->m_fMass / (afResult * afResult));
+				vecSet(afResult, afResult, afResult, afLittleF);
+				vecAdd(afBigF, afLittleF, afBigF);
+			}
+
+			currentOtherPlanet = currentOtherPlanet->m_pNext;
+		}
+
+		vecCopy(afBigF, currentPlanet->m_afForce);
+
+		currentPlanet = currentPlanet->m_pNext;
+	}
+}
+
 void calculatePosition()
 {
-	//s=p+(ut+1/2(at2))
+	//s=p+(ut+1/2(at)squared)
 	
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		vecScalarProduct(currentPlanet->m_afStartVel, TIME, currentPlanet->m_afEndVel);
-		currentPlanet->m_afEndPos = currentPlanet->m_afStartPos + (afResult + 0.5f * (2 * (TIME * TIME)));
+		float afResult[4];
+		vecScalarProduct(currentPlanet->m_afStartVel, TIME, currentPlanet->m_afEndVel); // ut
+		vecScalarProduct(currentPlanet->m_afAcceleration, TIME, afResult); // at
+		vecVectorProduct(afResult, afResult, afResult); // at squared
+		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
+		vecAdd(currentPlanet->m_afEndVel, afResult, afResult); // ut + at
+		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afStartPos);
+		//memcpy( currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, sizeof( float ) * 4 );//currentPlanet->m_afEndVele //+ (vecAdd(currentPlanet->m_afEndVel, (0.5f * (0 * (TIME * TIME)))));
 
 		currentPlanet = currentPlanet->m_pNext;
 	}
@@ -471,9 +513,11 @@ void calculateAcceleration()
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		currentPlanet->m_afStartVel[0] += currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
-		currentPlanet->m_afStartVel[1] += currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
-		currentPlanet->m_afStartVel[2] += currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
+		//vecNormalise(currentPlanet->m_afForce, &currentPlanet->m_fMass, currentPlanet->m_afAcceleration);
+		currentPlanet->m_afAcceleration[0] = currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
+		currentPlanet->m_afAcceleration[1] = currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
+		currentPlanet->m_afAcceleration[2] = currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
+
 		currentPlanet = currentPlanet->m_pNext;
 	}
 }
