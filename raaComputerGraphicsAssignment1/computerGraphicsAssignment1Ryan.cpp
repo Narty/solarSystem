@@ -82,16 +82,17 @@ planet* createNewPlanet()
 	vecInit(pPlanet->m_afStartVel);
 	vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afStartVel);
 	vecInit(pPlanet->m_afEndVel);
+	vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afEndVel);
 	pPlanet->m_fMass = randFloat(100.0f,1000.0f);
 	vecInit(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 	vecInit(pPlanet->m_afStartPos);
-	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
+	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-4.0f, 4.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
 	vecInit(pPlanet->m_afEndPos);
 	//pPlanet->m_afForce = randFloat(-100.0f, 100.0f);
 	vecInit(pPlanet->m_afForce);
 	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
-	vecSet(50000.0f, 50000.0f, 50000.0f, pPlanet->m_afForce);
+	//vecSet(50000.0f, 50000.0f, 50000.0f, pPlanet->m_afForce);
 	vecInit(pPlanet->m_afAcceleration);
 
 	return pPlanet;
@@ -329,7 +330,7 @@ void display()
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2], currentPlanet->m_afCol);
+		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afEndPos[0], currentPlanet->m_afEndPos[1], currentPlanet->m_afEndPos[2], currentPlanet->m_afCol);
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
@@ -454,14 +455,14 @@ void calculateForces()
 		vecInitDVec(afBigF);
 		float afLittleF[4];
 		planet *currentOtherPlanet = g_pHead;
-		currentOtherPlanet = currentOtherPlanet->m_pNext; //skip the star
+		//currentOtherPlanet = currentOtherPlanet->m_pNext; //skip the star
 		while(currentOtherPlanet)
 		{
 			float afResult;
 			if(currentPlanet != currentOtherPlanet) {
 				afResult = vecDistance(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos); // distance between the 2 bodies
 				afResult = GRAVITY * (currentPlanet->m_fMass * currentOtherPlanet->m_fMass / (afResult * afResult));
-				vecSet(afResult, afResult, afResult, afLittleF);
+				vecSet(afResult, afResult, afResult, afLittleF); // problem applying forces somewhere here
 				vecAdd(afBigF, afLittleF, afBigF);
 			}
 
@@ -487,7 +488,7 @@ void calculatePosition()
 		vecVectorProduct(afResult, afResult, afResult); // at squared
 		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
 		vecAdd(currentPlanet->m_afEndVel, afResult, afResult); // ut + at
-		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afStartPos);
+		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afEndPos); //s = p + the rest
 		//memcpy( currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, sizeof( float ) * 4 );//currentPlanet->m_afEndVele //+ (vecAdd(currentPlanet->m_afEndVel, (0.5f * (0 * (TIME * TIME)))));
 
 		currentPlanet = currentPlanet->m_pNext;
@@ -499,10 +500,15 @@ void calculateVelocity()
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
-		//currentPlanet->m_afStartPos[0] += currentPlanet->m_afStartVel[0];
-		//currentPlanet->m_afStartPos[1] += currentPlanet->m_afStartVel[1];
-		//currentPlanet->m_afStartPos[2] += currentPlanet->m_afStartVel[2];
 		//v= (s-p)/t
+		float afResult[4];
+		vecSub(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, afResult); // s-p
+		afResult[0] = afResult[0] / TIME;
+		afResult[1] = afResult[1] / TIME;
+		afResult[2] = afResult[2] / TIME;
+		vecCopy(afResult, currentPlanet->m_afEndVel);
+
+		vecCopy(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos); // after all calculations have finished set old pos to new pos
 
 		currentPlanet = currentPlanet->m_pNext;
 	}
