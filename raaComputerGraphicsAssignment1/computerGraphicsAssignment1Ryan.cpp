@@ -78,20 +78,37 @@ planet* createNewPlanet()
 	pPlanet -> m_pPrev = 0;
 	pPlanet -> m_pNext = 0;
 
+	float vUp[4], vDir[4], vStart[4];
+
+	vecInitPVec(vStart);
+	vecInitDVec(vUp);
+	vecInitDVec(vDir);
+
+	vecSet(0.0f, 1.0f, 0.0f, vUp);
+
 	// initialise data
-	pPlanet->m_fSize = randFloat(2.0f, 20.0f);
-	vecInit(pPlanet->m_afStartVel);
-	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afStartVel);
+	pPlanet->m_fSize = randFloat(50.0f, 100.0f);
+//	vecInit(pPlanet->m_afStartVel);
+//	vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afStartVel);
 	vecInit(pPlanet->m_afEndVel);
 	//vecCopy(pPlanet->m_afStartVel, pPlanet->m_afEndVel);
 	//vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afEndVel);
-	pPlanet->m_fMass = randFloat(100.0f,150.0f);
+	pPlanet->m_fMass = randFloat(100.0f,1000.0f);
 	vecInit(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 	vecInit(pPlanet->m_afStartPos);
-	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
+	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-4.0f, 4.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
 	vecInit(pPlanet->m_afEndPos);
 	vecCopy(pPlanet->m_afStartPos, pPlanet->m_afEndPos);
+
+	vecSub(vStart, pPlanet->m_afStartPos, vDir);
+	vecNormalise(vDir, vDir);
+	vecCrossProduct(vDir, vUp, pPlanet->m_afStartVel);
+	vecNormalise(pPlanet->m_afStartVel, pPlanet->m_afStartVel);
+	vecScalarProduct(pPlanet->m_afStartVel, randFloat(-300.0f, 300.0f), pPlanet->m_afStartVel);
+
+
+
 	//pPlanet->m_afForce = randFloat(-100.0f, 100.0f);
 	vecInit(pPlanet->m_afForce);
 	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
@@ -109,7 +126,7 @@ planet* createNewStar()
 	pStar -> m_pNext = 0;
 
 	// initialise data
-	pStar->m_fSize = 100.0f;
+	pStar->m_fSize = 500.0f;
 	vecInit(pStar->m_afStartVel);
 	vecInit(pStar->m_afEndVel);
 	pStar->m_fMass = 90000.0f;
@@ -346,10 +363,10 @@ void idle()
 {
 	if(calculateMotion) {
 		calculateForces();
-		calculateAcceleration();
-		calculatePosition();
-		calculateVelocity();
-		applyAccelToVel();
+//		calculateAcceleration();
+//		calculatePosition();
+//		calculateVelocity();
+//		applyAccelToVel();
 	}
 	mouseMotion();
 	glutPostRedisplay();
@@ -469,7 +486,8 @@ void calculateForces()
 			vecInit(afVecResult);
 			vecInit(afVDir);
 			if(currentPlanet != currentOtherPlanet) {
-				vecSub(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
+//				vecSub(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
+				vecSub(currentOtherPlanet->m_afStartPos, currentPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
 				fVDist = vecNormalise(afVDir, afVDir); // don't need vec  afVecResult
 				fLittleF = GRAVITY * ((currentPlanet->m_fMass * currentOtherPlanet->m_fMass) / (fVDist * fVDist));
 				vecScalarProduct(afVDir, fLittleF, afVDir);
@@ -483,6 +501,34 @@ void calculateForces()
 
 		vecCopy(afBigF, currentPlanet->m_afForce);
 		//vecAdd(currentPlanet->m_afForce, afBigF, currentPlanet->m_afForce);
+
+		currentPlanet->m_afAcceleration[0] = currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
+		currentPlanet->m_afAcceleration[1] = currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
+		currentPlanet->m_afAcceleration[2] = currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
+
+
+		float afResult[4];
+		float afVelResult[4];
+		vecInit(afResult);
+		vecInit(afVelResult);
+		vecScalarProduct(currentPlanet->m_afStartVel, TIME, afVelResult); // ut
+		vecScalarProduct(currentPlanet->m_afAcceleration, TIME*TIME, afResult); // at
+//		vecVectorProduct(afResult, afResult, afResult); // at squared
+		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
+		vecAdd(afVelResult, afResult, afResult); // ut + at
+		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afEndPos); //s = p + the rest
+		//memcpy( currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, sizeof( float ) * 4 );//currentPlanet->m_afEndVele //+ (vecAdd(currentPlanet->m_afEndVel, (0.5f * (0 * (TIME * TIME)))));
+
+
+//		float afResult[4];
+		vecSub(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, afResult); // s-p
+		afResult[0] = afResult[0] / TIME;
+		afResult[1] = afResult[1] / TIME;
+		afResult[2] = afResult[2] / TIME;
+		vecCopy(afResult, currentPlanet->m_afEndVel);
+
+		vecCopy(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos); // after all calculations have finished set old pos to new pos
+
 
 		currentPlanet = currentPlanet->m_pNext;
 	}
@@ -500,8 +546,8 @@ void calculatePosition()
 		vecInit(afResult);
 		vecInit(afVelResult);
 		vecScalarProduct(currentPlanet->m_afStartVel, TIME, afVelResult); // ut
-		vecScalarProduct(currentPlanet->m_afAcceleration, TIME, afResult); // at
-		vecVectorProduct(afResult, afResult, afResult); // at squared
+		vecScalarProduct(currentPlanet->m_afAcceleration, TIME*TIME, afResult); // at
+//		vecVectorProduct(afResult, afResult, afResult); // at squared
 		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
 		vecAdd(afVelResult, afResult, afResult); // ut + at
 		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afEndPos); //s = p + the rest
@@ -522,7 +568,7 @@ void calculateVelocity()
 		afResult[0] = afResult[0] / TIME;
 		afResult[1] = afResult[1] / TIME;
 		afResult[2] = afResult[2] / TIME;
-		vecCopy(afResult, currentPlanet->m_afEndVel);
+		vecCopy(afResult, currentPlanet->m_afStartVel);
 
 		vecCopy(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos); // after all calculations have finished set old pos to new pos
 
