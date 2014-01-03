@@ -23,6 +23,12 @@ int g_aiStartMouse[2];
 bool g_bExplore=false;
 bool g_bFly=false;
 int g_currentPlanetId=0;
+struct planetLinePoint
+{
+	planetLinePoint *m_plpNext;
+	planetLinePoint *m_plpPrev;
+	float m_fPoint[4];
+};
 struct planet
 {
 	planet *m_pNext;
@@ -38,6 +44,8 @@ struct planet
 	//float m_afForce;
 	float m_afAcceleration[4]; //x,y,z,0
 	int m_iPlanetId;
+	planetLinePoint *m_plpHead;
+	planetLinePoint *m_plpTail;
 };
 planet *g_pHead=0;
 planet *g_pTail=0;
@@ -73,12 +81,28 @@ bool calculateMotion;
 
 unsigned int g_uiLastTime=0;
 
+planetLinePoint* createNewPlanetLinePoint(float x, float y, float z)
+{
+	planetLinePoint *plpPoint = new planetLinePoint;
+
+	plpPoint -> m_plpPrev = 0;
+	plpPoint -> m_plpNext = 0;
+	plpPoint -> m_fPoint[0] = x;
+	plpPoint -> m_fPoint[1] = y;
+	plpPoint -> m_fPoint[2] = z;
+	plpPoint -> m_fPoint[3] = 0;
+
+	return plpPoint;
+}
+
 planet* createNewPlanet()
 {
 	planet *pPlanet=new planet;
 
 	pPlanet -> m_pPrev = 0;
 	pPlanet -> m_pNext = 0;
+	pPlanet -> m_plpHead = 0;
+	pPlanet -> m_plpTail = 0;
 
 	float vUp[4], vDir[4], vStart[4];
 
@@ -209,6 +233,25 @@ void pushTail(planet *pPlanet)
 			pPlanet->m_pPrev = g_pTail;
 			pPlanet->m_pNext = 0;
 			g_pTail = pPlanet;
+		}
+	}
+}
+
+void pushPlanetLineTail(planet *pPlanet, planetLinePoint *plpPoint)
+{
+	if(plpPoint != 0 && plpPoint->m_plpNext == 0 && plpPoint->m_plpPrev == 0)
+	{
+		if(pPlanet -> m_plpHead == 0 && pPlanet -> m_plpTail == 0)
+		{
+			pPlanet -> m_plpHead = plpPoint;
+			pPlanet -> m_plpTail = plpPoint;
+		}
+		else
+		{
+			pPlanet -> m_plpTail->m_plpNext = plpPoint;
+			plpPoint->m_plpPrev = pPlanet -> m_plpTail;
+			plpPoint->m_plpNext = 0;
+			pPlanet -> m_plpTail = plpPoint;
 		}
 	}
 }
@@ -356,7 +399,24 @@ void display()
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
+		planetLinePoint *currentPoint = currentPlanet ->m_plpHead;
 		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2], currentPlanet->m_afCol);
+
+		if(currentPlanet -> m_pPrev != 0) //skip star
+		{
+			glPushAttrib(GL_ALL_ATTRIB_BITS);
+			glBegin(GL_LINE_STRIP);
+			//glDisable(GL_LIGHTING);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, currentPlanet->m_afCol);
+			while(currentPoint)
+			{
+				glVertex3f(currentPoint->m_fPoint[0], currentPoint->m_fPoint[1], currentPoint->m_fPoint[2]);		
+				currentPoint = currentPoint -> m_plpNext;
+			}
+			glEnd();
+			glPopAttrib();
+		}
+
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
@@ -544,6 +604,8 @@ void calculateForces()
 		currentPlanet->m_afStartVel[0] += currentPlanet->m_afAcceleration[0];
         currentPlanet->m_afStartVel[1] += currentPlanet->m_afAcceleration[1];
         currentPlanet->m_afStartVel[2] += currentPlanet->m_afAcceleration[2];
+
+		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
 
 		currentPlanet = currentPlanet->m_pNext;
 	}
