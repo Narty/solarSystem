@@ -22,6 +22,7 @@ int g_aiLastMouse[2];
 int g_aiStartMouse[2];
 bool g_bExplore=false;
 bool g_bFly=false;
+int g_currentPlanetId=0;
 struct planet
 {
 	planet *m_pNext;
@@ -36,6 +37,7 @@ struct planet
 	float m_afForce[4]; //x,y,z,0
 	//float m_afForce;
 	float m_afAcceleration[4]; //x,y,z,0
+	int m_iPlanetId;
 };
 planet *g_pHead=0;
 planet *g_pTail=0;
@@ -93,19 +95,19 @@ planet* createNewPlanet()
 	vecInit(pPlanet->m_afEndVel);
 	//vecCopy(pPlanet->m_afStartVel, pPlanet->m_afEndVel);
 	//vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afEndVel);
-	pPlanet->m_fMass = randFloat(100.0f,1000.0f);
+	pPlanet->m_fMass = randFloat(140.0f,150.0f);
 	vecInit(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 	vecInit(pPlanet->m_afStartPos);
-	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-4.0f, 4.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
+	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f, 30.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
 	vecInit(pPlanet->m_afEndPos);
 	vecCopy(pPlanet->m_afStartPos, pPlanet->m_afEndPos);
 
 	vecSub(vStart, pPlanet->m_afStartPos, vDir);
 	vecNormalise(vDir, vDir);
-	vecCrossProduct(vDir, vUp, pPlanet->m_afStartVel);
+	//vecCrossProduct(vDir, vUp, pPlanet->m_afStartVel);
 	vecNormalise(pPlanet->m_afStartVel, pPlanet->m_afStartVel);
-	vecScalarProduct(pPlanet->m_afStartVel, randFloat(-300.0f, 300.0f), pPlanet->m_afStartVel);
+	vecScalarProduct(pPlanet->m_afStartVel, randFloat(900.0f, 1000.0f), pPlanet->m_afStartVel);
 
 
 
@@ -114,6 +116,10 @@ planet* createNewPlanet()
 	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
 	//vecSet(50000.0f, 50000.0f, 50000.0f, pPlanet->m_afForce);
 	vecInit(pPlanet->m_afAcceleration);
+
+	pPlanet->m_iPlanetId = g_currentPlanetId;
+
+	g_currentPlanetId++;
 
 	return pPlanet;
 }
@@ -366,7 +372,7 @@ void idle()
 //		calculateAcceleration();
 //		calculatePosition();
 //		calculateVelocity();
-//		applyAccelToVel();
+		//applyAccelToVel();
 	}
 	mouseMotion();
 	glutPostRedisplay();
@@ -482,15 +488,21 @@ void calculateForces()
 		{
 			float afVecResult[4];
 			float fVDist = 0.0f;
-			float afVDir[4];
+			float afVDir[4], vUp[4];
 			vecInit(afVecResult);
 			vecInit(afVDir);
+			vecSet(0.0f, 1.0f, 0.0f, vUp);
 			if(currentPlanet != currentOtherPlanet) {
-//				vecSub(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
+				//vecSub(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
 				vecSub(currentOtherPlanet->m_afStartPos, currentPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
 				fVDist = vecNormalise(afVDir, afVDir); // don't need vec  afVecResult
+
+				//vecCrossProduct(afVDir, vUp, currentPlanet->m_afStartVel);//
+				//vecNormalise(currentPlanet->m_afStartVel, currentPlanet->m_afStartVel);//
+
 				fLittleF = GRAVITY * ((currentPlanet->m_fMass * currentOtherPlanet->m_fMass) / (fVDist * fVDist));
-				vecScalarProduct(afVDir, fLittleF, afVDir);
+				//vecScalarProduct(currentPlanet->m_afStartVel, fLittleF, currentPlanet->m_afStartVel);//
+				vecScalarProduct(afVDir, fLittleF, afVDir); //maybe some cros product stuff here to calculate vector direction?
 				vecAdd(afBigF, afVDir, afBigF);
 				//vecSet(afResult, afResult, afResult, afLittleF); // problem applying forces somewhere here
 				//vecAdd(afBigF, afLittleF, afBigF);
@@ -529,6 +541,9 @@ void calculateForces()
 
 		vecCopy(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos); // after all calculations have finished set old pos to new pos
 
+		currentPlanet->m_afStartVel[0] += currentPlanet->m_afAcceleration[0];
+        currentPlanet->m_afStartVel[1] += currentPlanet->m_afAcceleration[1];
+        currentPlanet->m_afStartVel[2] += currentPlanet->m_afAcceleration[2];
 
 		currentPlanet = currentPlanet->m_pNext;
 	}
