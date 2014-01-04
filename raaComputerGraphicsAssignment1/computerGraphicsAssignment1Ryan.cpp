@@ -23,6 +23,19 @@ int g_aiStartMouse[2];
 bool g_bExplore=false;
 bool g_bFly=false;
 int g_currentPlanetId=0;
+enum menuItems {speedNormal, speedFast, speedFaster, tailShort, tailMedium, tailLong, toggleMotion};
+bool calculateMotion;
+int tailMaxLength = 1000;
+float timeMultiplier = 1.0f;
+int currentTime = 0;
+int frameCount = 0;
+int previousTime = 0;
+float fps = 0.0f;
+int ticksPerSecond = 60;
+int skipTicks = 1000/ticksPerSecond;
+int maxFrameSkip = 10;
+int loops = 0;
+int nextGameTick = glutGet(GLUT_ELAPSED_TIME);
 struct planetLinePoint
 {
 	planetLinePoint *m_plpNext;
@@ -66,6 +79,8 @@ void calculateVelocity();
 void calculateAcceleration();
 void calculateForces(); 
 void applyAccelToVel();
+void calculateFPS();
+void drawFPS(char* format, ...);
 
 planet* createNewPlanet(char data);
 planet* deletePlanet(planet *pPlanet);
@@ -77,7 +92,6 @@ bool destroy(planet* pPlanet);
 void insertBefore(planet* pPlanet, planet* pTarget);
 void insertAfter(planet* pPlanet, planet* pTarget);
 bool remove(planet* pPlanet);
-bool calculateMotion;
 
 unsigned int g_uiLastTime=0;
 
@@ -113,14 +127,11 @@ planet* createNewPlanet()
 	vecSet(0.0f, 1.0f, 0.0f, vUp);
 
 	// initialise data
-	pPlanet->m_fSize = randFloat(50.0f, 100.0f);
-//	vecInit(pPlanet->m_afStartVel);
-//	vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afStartVel);
+	//pPlanet->m_fSize = randFloat(50.0f, 100.0f);
 	vecInit(pPlanet->m_afEndVel);
-	//vecCopy(pPlanet->m_afStartVel, pPlanet->m_afEndVel);
-	//vecSet(randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), randFloat(100.0f, 300.0f), pPlanet->m_afEndVel);
 	pPlanet->m_fMass = randFloat(140.0f,150.0f);
-	vecInit(pPlanet->m_afCol);
+	pPlanet->m_fSize = pPlanet->m_fMass;
+	vecInitPVec(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 	vecInit(pPlanet->m_afStartPos);
 	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f, 30.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
@@ -156,10 +167,11 @@ planet* createNewStar()
 	pStar -> m_pNext = 0;
 
 	// initialise data
-	pStar->m_fSize = 500.0f;
+	//pStar->m_fSize = 500.0f;
 	vecInit(pStar->m_afStartVel);
 	vecInit(pStar->m_afEndVel);
 	pStar->m_fMass = 90000.0f;
+	pStar->m_fSize = pStar->m_fMass * 0.01;
 	vecInit(pStar->m_afCol);
 	vecSet(1.0f, 1.0f, 0.0f, pStar->m_afCol);
 	pStar->m_afCol[3] = 1.0f;
@@ -391,11 +403,8 @@ void display()
 
 	camApply(g_Camera);
 
-	//gridDraw(g_ulGrid);
-
 	glPushMatrix();
 
-	// this is a placeholder, you should replace it with instructions to draw your planet system
 	planet *currentPlanet = g_pHead;
 	while(currentPlanet)
 	{
@@ -404,15 +413,25 @@ void display()
 
 		if(currentPlanet -> m_pPrev != 0) //skip star
 		{
+			int tailLength = 0;
 			glPushAttrib(GL_ALL_ATTRIB_BITS);
 			glBegin(GL_LINE_STRIP);
-			//glDisable(GL_LIGHTING);
+			glEnable(GL_BLEND);
 			glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, currentPlanet->m_afCol);
+			glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 5.0f);
+			glBlendFunc (GL_ONE, GL_ZERO);
 			while(currentPoint)
 			{
 				glVertex3f(currentPoint->m_fPoint[0], currentPoint->m_fPoint[1], currentPoint->m_fPoint[2]);		
 				currentPoint = currentPoint -> m_plpNext;
+				tailLength++;
+				if(tailLength > tailMaxLength) { // remove head every time over the max length to maintain fixed size tail
+					currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
+					delete currentPlanet -> m_plpHead -> m_plpPrev;
+					currentPlanet -> m_plpHead -> m_plpPrev = 0;
+				}
 			}
+			glDisable(GL_BLEND);
 			glEnd();
 			glPopAttrib();
 		}
@@ -420,22 +439,96 @@ void display()
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
+	drawFPS("FPS: %4.2f", fps);
+
 	glPopMatrix();
 	glFlush(); 
 
 	glutSwapBuffers();
 }
 void idle()
-{
-	if(calculateMotion) {
-		calculateForces();
-//		calculateAcceleration();
-//		calculatePosition();
-//		calculateVelocity();
-		//applyAccelToVel();
+{    
+	loops = 0;
+	calculateFPS();
+	while(glutGet(GLUT_ELAPSED_TIME) > nextGameTick && loops < maxFrameSkip)
+	{
+		if(calculateMotion) {
+			calculateForces();
+			//calculateAcceleration();
+			//calculatePosition();
+			//calculateVelocity();
+			//applyAccelToVel();
+		}
+		nextGameTick = skipTicks + glutGet(GLUT_ELAPSED_TIME);
+		loops++;
 	}
 	mouseMotion();
 	glutPostRedisplay();
+}
+
+void calculateFPS()
+{
+	 //  Increase frame count
+    frameCount++;
+ 
+    //  Get the number of milliseconds since glutInit called
+    //  (or first call to glutGet(GLUT ELAPSED TIME)).
+    currentTime = glutGet(GLUT_ELAPSED_TIME);
+ 
+    //  Calculate time passed
+    int timeInterval = currentTime - previousTime;
+ 
+    if(timeInterval > 1000)
+    {
+        //  calculate the number of frames per second
+        fps = frameCount / (timeInterval / 1000.0f);
+ 
+        //  Set time
+        previousTime = currentTime;
+ 
+        //  Reset frame count
+        frameCount = 0;
+    }
+}
+
+void drawFPS(char* format, ...)
+{
+    //  Load the identity matrix so that FPS string being drawn
+    //  won't get animates
+	//glLoadIdentity ();
+
+	//  Print the FPS to the window
+	va_list args;
+	int len;
+	int i;
+	char * text;
+	//char* format = "FPS: %4.2f";
+
+	//  Initialize a variable argument list
+	va_start(args, format);
+
+	//  Return the number of characters in the string referenced the list of arguments.
+	//  _vscprintf doesn't count terminating '\0' (that's why +1)
+	len = _vscprintf(format, args) + 1; 
+
+	//  Allocate memory for a string of the specified size
+	text = (char *)malloc(len * sizeof(char));
+
+	//  Write formatted output using a pointer to the list of arguments
+	vsprintf_s(text, len, format, args);
+
+	//  End using variable argument list 
+	va_end(args);
+
+	//  Specify the raster position for pixel operations.
+	glRasterPos2f (0.9, 0.9);
+
+	//  Draw the characters one by one
+    for (i = 0; text[i] != '\0'; i++)
+        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text[i]);
+
+	//  Free the allocated memory for the string
+	free(text);
 }
 
 void reshape(int iWidth, int iHeight)
@@ -683,8 +776,13 @@ void applyAccelToVel()
 void menu(int op)
 {
 	switch(op) {
-	case 1:
-		calculateMotion = !calculateMotion;
+		case toggleMotion: calculateMotion = !calculateMotion; break;
+		case tailShort: tailMaxLength = 300; break;
+		case tailMedium: tailMaxLength = 1000; break;
+		case tailLong: tailMaxLength = 2000; break;
+		case speedNormal: skipTicks = 1000 / ticksPerSecond; break;
+		case speedFast: skipTicks = 1000 / (ticksPerSecond * 2); break;
+		case speedFaster: skipTicks = 1000 / (ticksPerSecond * 4); break;
 	}
 }
 
@@ -704,12 +802,22 @@ void myInit()
 
 	calculateMotion = true;
 
-	glutCreateMenu(menu);
-	glutAddMenuEntry("Toggle motion", 1);
+	int simSpeedSubMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("Normal (1x)", speedNormal);
+	glutAddMenuEntry("Fast (2x)", speedFast);
+	glutAddMenuEntry("Faster (4x)", speedFaster);
+	int tailLengthSubMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("Short", tailShort);
+	glutAddMenuEntry("Medium", tailMedium);
+	glutAddMenuEntry("Long", tailLong);
+	int mainMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("Toggle Motion", toggleMotion);
+	glutAddSubMenu("Tail Length", tailLengthSubMenu);
+	glutAddSubMenu("Sim. Speed", simSpeedSubMenu);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
-	float afGridColour[]={1.0f, 0.1f, 0.3f, 1.0f};
-	gridInit(g_ulGrid, afGridColour, -50, 50, 500.0f);
+	//float afGridColour[]={1.0f, 0.1f, 0.3f, 1.0f};
+	//gridInit(g_ulGrid, afGridColour, -50, 50, 500.0f);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
