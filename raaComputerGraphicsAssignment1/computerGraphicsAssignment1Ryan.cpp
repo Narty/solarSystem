@@ -134,7 +134,7 @@ planet* createNewPlanet()
 	vecInitPVec(pPlanet->m_afCol);
 	vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 	vecInit(pPlanet->m_afStartPos);
-	vecSet(randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), randFloat(-30.0f, 30.0f), randFloat(-30.0f * (g_pHead->m_fSize / 2), 30.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
+	vecSet(randFloat(-40.0f * (g_pHead->m_fSize / 2), 40.0f * (g_pHead->m_fSize / 2)), randFloat(-40.0f * (g_pHead->m_fSize / 2), 40.0f * (g_pHead->m_fSize / 2)), randFloat(-40.0f * (g_pHead->m_fSize / 2), 40.0f * (g_pHead->m_fSize / 2)), pPlanet->m_afStartPos);
 	vecInit(pPlanet->m_afEndPos);
 	vecCopy(pPlanet->m_afStartPos, pPlanet->m_afEndPos);
 
@@ -142,7 +142,7 @@ planet* createNewPlanet()
 	vecNormalise(vDir, vDir);
 	//vecCrossProduct(vDir, vUp, pPlanet->m_afStartVel);
 	vecNormalise(pPlanet->m_afStartVel, pPlanet->m_afStartVel);
-	vecScalarProduct(pPlanet->m_afStartVel, randFloat(900.0f, 1000.0f), pPlanet->m_afStartVel);
+	vecScalarProduct(pPlanet->m_afStartVel, randFloat(-700.0f, 800.0f), pPlanet->m_afStartVel);
 
 
 
@@ -697,6 +697,10 @@ void calculateForces()
 		currentPlanet->m_afStartVel[0] += currentPlanet->m_afAcceleration[0];
         currentPlanet->m_afStartVel[1] += currentPlanet->m_afAcceleration[1];
         currentPlanet->m_afStartVel[2] += currentPlanet->m_afAcceleration[2];
+
+		currentPlanet->m_afStartVel[0] = currentPlanet->m_afStartVel[0] * 0.99999f;
+        currentPlanet->m_afStartVel[1] = currentPlanet->m_afStartVel[1] * 0.99999f;
+        currentPlanet->m_afStartVel[2] = currentPlanet->m_afStartVel[2] * 0.99999f;
 
 		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
 
