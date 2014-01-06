@@ -81,6 +81,7 @@ void calculateForces();
 void applyAccelToVel();
 void calculateFPS();
 void drawFPS(char* format, ...);
+void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet);
 
 planet* createNewPlanet(char data);
 planet* deletePlanet(planet *pPlanet);
@@ -180,6 +181,7 @@ planet* createNewStar()
 	//pStar->m_afForce = 0.0f;
 	vecInit(pStar->m_afForce);
 	vecInit(pStar->m_afAcceleration);
+	pStar->m_iPlanetId = g_currentPlanetId;
 
 	return pStar;
 }
@@ -194,6 +196,14 @@ planet* deletePlanet(planet *pPlanet)
 		remove(pE);
 
 		// clean up data
+		planetLinePoint *currentPoint = pPlanet ->m_plpHead;
+		// release all planet trail memory
+		while(currentPoint)
+		{
+			planetLinePoint *nextPoint = currentPoint ->m_plpNext;
+			delete currentPoint;
+			currentPoint = nextPoint;
+		}
 		pPlanet->m_fSize = 0;
 		vecInitDVec(pPlanet->m_afStartVel);
 		pPlanet->m_fMass = 0;
@@ -636,6 +646,8 @@ void calculateForces()
 		//vecCopy(currentPlanet->m_afForce, afBigF);
 		float fLittleF;
 		planet *currentOtherPlanet = g_pHead;
+		planet *collidedPlanet = 0;
+		planet *collidedOtherPlanet = 0;
 		//currentOtherPlanet = currentOtherPlanet->m_pNext; //skip the star
 		while(currentOtherPlanet)
 		{
@@ -659,6 +671,10 @@ void calculateForces()
 				vecAdd(afBigF, afVDir, afBigF);
 				//vecSet(afResult, afResult, afResult, afLittleF); // problem applying forces somewhere here
 				//vecAdd(afBigF, afLittleF, afBigF);
+				if(fVDist < currentOtherPlanet->m_fSize) {
+					collidedPlanet = currentPlanet;
+					collidedOtherPlanet = currentOtherPlanet;
+				}
 			}
 
 			currentOtherPlanet = currentOtherPlanet->m_pNext;
@@ -705,6 +721,58 @@ void calculateForces()
 		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
 
 		currentPlanet = currentPlanet->m_pNext;
+		if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
+			calculateCollision(collidedPlanet, collidedOtherPlanet);
+		}
+	}
+}
+
+void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet)
+{
+	if(currentOtherPlanet ->m_iPlanetId != 0)
+	{
+		printf("planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
+		planet *pPlanet=new planet;
+
+		pPlanet -> m_pPrev = 0;
+		pPlanet -> m_pNext = 0;
+		pPlanet -> m_plpHead = 0;
+		pPlanet -> m_plpTail = 0;
+		pPlanet -> m_fMass = currentPlanet->m_fMass + currentOtherPlanet->m_fMass;
+		vecInitPVec(pPlanet->m_afCol);
+		vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
+		pPlanet -> m_afStartPos[0] = (currentPlanet ->m_afStartPos[0] + currentOtherPlanet ->m_afStartPos[0]) / 2;
+		pPlanet -> m_afStartPos[1] = (currentPlanet ->m_afStartPos[1] + currentOtherPlanet ->m_afStartPos[1]) / 2;
+		pPlanet -> m_afStartPos[2] = (currentPlanet ->m_afStartPos[2] + currentOtherPlanet ->m_afStartPos[2]) / 2;
+		pPlanet -> m_afStartPos[3] = 0;
+		vecInit(pPlanet->m_afEndPos);
+		pPlanet -> m_afForce[0] = (currentPlanet ->m_afForce[0] + currentOtherPlanet ->m_afForce[0]) / 2;
+		pPlanet -> m_afForce[1] = (currentPlanet ->m_afForce[1] + currentOtherPlanet ->m_afForce[1]) / 2;
+		pPlanet -> m_afForce[2] = (currentPlanet ->m_afForce[2] + currentOtherPlanet ->m_afForce[2]) / 2;
+		pPlanet -> m_afForce[3] = 0;
+		pPlanet -> m_afAcceleration[0] = (currentPlanet ->m_afAcceleration[0] + currentOtherPlanet ->m_afAcceleration[0]) / 2;
+		pPlanet -> m_afAcceleration[1] = (currentPlanet ->m_afAcceleration[1] + currentOtherPlanet ->m_afAcceleration[1]) / 2;
+		pPlanet -> m_afAcceleration[2] = (currentPlanet ->m_afAcceleration[2] + currentOtherPlanet ->m_afAcceleration[2]) / 2;
+		pPlanet -> m_afAcceleration[3] = 0;
+		pPlanet -> m_iPlanetId = g_currentPlanetId;
+		pPlanet -> m_plpHead = 0;
+		pPlanet -> m_plpTail = 0;
+
+		g_currentPlanetId++;
+		//add new merged planet to the list of planets
+		pushTail(pPlanet);
+		//remove the two colliding planets
+		remove(currentPlanet);
+		deletePlanet(currentPlanet);
+		remove(currentOtherPlanet);
+		deletePlanet(currentOtherPlanet);
+	}
+	else
+	{
+		printf("planet %d collided with the sun and was burnt to a crisp! The planet is no more.\n", currentPlanet->m_iPlanetId);
+		currentOtherPlanet -> m_fMass += currentPlanet -> m_fMass;
+		remove(currentPlanet);
+		deletePlanet(currentPlanet);
 	}
 }
 
