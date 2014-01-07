@@ -189,6 +189,7 @@ planet* createNewStar()
 	vecInit(pStar->m_afForce);
 	vecInit(pStar->m_afAcceleration);
 	pStar->m_iPlanetId = g_currentPlanetId;
+	g_currentPlanetId++;
 
 	return pStar;
 }
@@ -428,32 +429,78 @@ void display()
 	{
 		planetLinePoint *currentPoint = currentPlanet ->m_plpHead;
 		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2], currentPlanet->m_afCol);
-
-		if(currentPlanet -> m_pPrev != 0) //skip star
+		//float *fArray = (float*)malloc(tailMaxLength * sizeof(float));//(int*)calloc(tailMaxLength, sizeof(float));
+		//float tail[6000] = {0};
+		int tailLength = 0;
+		if(currentPlanet != g_pHead) //skip star
 		{
-			int tailLength = 0;
-			glPushAttrib(GL_ALL_ATTRIB_BITS);
-			glBegin(GL_LINE_STRIP);
-			glEnable(GL_BLEND);
-			glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, currentPlanet->m_afCol);
-			glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 5.0f);
-			glBlendFunc (GL_ONE, GL_ZERO);
+			float *fArray = (float*)malloc(tailMaxLength * 3 * sizeof(float));//(int*)calloc(tailMaxLength, sizeof(float));
+			float *fColourArray = (float*)malloc(tailMaxLength * 3 * sizeof(float));
 			while(currentPoint)
 			{
-				glVertex3f(currentPoint->m_fPoint[0], currentPoint->m_fPoint[1], currentPoint->m_fPoint[2]);		
-				currentPoint = currentPoint -> m_plpNext;
-				tailLength++;
-				if(tailLength > tailMaxLength) { // remove head every time over the max length to maintain fixed size tail
-					currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
-					delete currentPlanet -> m_plpHead -> m_plpPrev;
-					currentPlanet -> m_plpHead -> m_plpPrev = 0;
-				}
+					fColourArray[tailLength] = currentPlanet -> m_afCol[0];
+					fArray[tailLength++] = currentPoint ->m_fPoint[0];
+					//printf("%f", fArray[tailLength-1]);
+					fColourArray[tailLength] = currentPlanet -> m_afCol[1];
+					fArray[tailLength++] = currentPoint ->m_fPoint[1];
+					//printf("%f", fArray[tailLength-1]);
+					fColourArray[tailLength] = currentPlanet -> m_afCol[2];
+					fArray[tailLength++] = currentPoint ->m_fPoint[2];
+					//printf("%f", fArray[tailLength-1]);
+					currentPoint = currentPoint -> m_plpNext;
+					if((tailLength+3)/3 > tailMaxLength)
+					{ // remove head every time over the max length to maintain fixed size tail
+						break;
+						//currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
+						//delete currentPlanet -> m_plpHead -> m_plpPrev;
+						//currentPlanet -> m_plpHead -> m_plpPrev = 0;
+					}
 			}
-			glDisable(GL_BLEND);
-			glEnd();
-			glPopAttrib();
+
+			glEnableClientState(GL_VERTEX_ARRAY);
+			glEnableClientState(GL_COLOR_ARRAY);
+			glDisable( GL_LIGHTING );
+			glColorPointer(3, GL_FLOAT, 0, &fColourArray[0]);
+			glVertexPointer(3, GL_FLOAT, 0, &fArray[0]);
+			glDrawArrays(GL_LINE_STRIP, 0, tailLength/3);
+			glDisableClientState(GL_VERTEX_ARRAY);
+			glDisableClientState(GL_COLOR_ARRAY);
+
+			free((void*) fArray);
+			free((void*) fColourArray);
+			if((tailLength+3)/3 > tailMaxLength)
+					{ // remove head every time over the max length to maintain fixed size tail
+						currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
+						delete currentPlanet -> m_plpHead -> m_plpPrev;
+						currentPlanet -> m_plpHead -> m_plpPrev = 0;
+					}
 		}
 
+		//if(currentPlanet -> m_pPrev != 0) //skip star
+		//{
+		//	int tailLength = 0;
+		//	glPushAttrib(GL_ALL_ATTRIB_BITS);
+		//	glBegin(GL_LINE_STRIP);
+		//	glEnable(GL_BLEND);
+		//	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, currentPlanet->m_afCol);
+		//	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 5.0f);
+		//	glBlendFunc (GL_ONE, GL_ZERO);
+		//	while(currentPoint)
+		//	{
+		//		glVertex3f(currentPoint->m_fPoint[0], currentPoint->m_fPoint[1], currentPoint->m_fPoint[2]);		
+		//		currentPoint = currentPoint -> m_plpNext;
+		//		tailLength++;
+		//		if(tailLength > tailMaxLength) { // remove head every time over the max length to maintain fixed size tail
+		//			currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
+		//			delete currentPlanet -> m_plpHead -> m_plpPrev;
+		//			currentPlanet -> m_plpHead -> m_plpPrev = 0;
+		//		}
+		//	}
+		//	glDisable(GL_BLEND);
+		//	glEnd();
+		//	glPopAttrib();
+		//}
+		//free((void*) fArray);
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
