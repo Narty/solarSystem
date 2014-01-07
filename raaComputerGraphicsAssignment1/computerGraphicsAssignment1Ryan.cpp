@@ -23,7 +23,9 @@ int g_aiStartMouse[2];
 bool g_bExplore=false;
 bool g_bFly=false;
 int g_currentPlanetId=0;
-enum menuItems {speedNormal, speedFast, speedFaster, tailShort, tailMedium, tailLong, toggleMotion};
+int g_currentPlanetCount = 0;
+enum menuItems {speedNormal, speedFast, speedFaster, tailShort, tailMedium, tailLong, toggleMotion, addTenPlanets, addTwentyPlanets, addFortyPlanets,
+				removeTenPlanets, removeTwentyPlanets, removeFortyPlanets, setFiftyPlanets, setHundredPlanets, setHundredFiftyPlanets, saveState};
 bool calculateMotion;
 int tailMaxLength = 1000;
 float timeMultiplier = 1.0f;
@@ -36,6 +38,7 @@ int skipTicks = 1000/ticksPerSecond;
 int maxFrameSkip = 10;
 int loops = 0;
 int nextGameTick = glutGet(GLUT_ELAPSED_TIME);
+char lastEvent[100] = "";
 struct planetLinePoint
 {
 	planetLinePoint *m_plpNext;
@@ -80,8 +83,11 @@ void calculateAcceleration();
 void calculateForces(); 
 void applyAccelToVel();
 void calculateFPS();
-void drawFPS(char* format, ...);
+void drawText(int x, int y, char* format, ...);
 void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet);
+void addPlanet(int amount);
+void removePlanet(int amount);
+void saveModelState();
 
 planet* createNewPlanet(char data);
 planet* deletePlanet(planet *pPlanet);
@@ -156,6 +162,7 @@ planet* createNewPlanet()
 	pPlanet->m_iPlanetId = g_currentPlanetId;
 
 	g_currentPlanetId++;
+	g_currentPlanetCount++;
 
 	return pPlanet;
 }
@@ -216,6 +223,7 @@ planet* deletePlanet(planet *pPlanet)
 		delete pE;
 		// clean up pointer
 		pE=0;
+		g_currentPlanetCount--;
 	}
 
 	return pE;
@@ -449,7 +457,9 @@ void display()
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
-	drawFPS("FPS: %4.2f", fps);
+	drawText(5, 10, "FPS: %4.2f", fps);
+	drawText(5, 5, "Planets: %d", g_currentPlanetCount);
+	//drawText(5, 0, "%s", lastEvent);
 
 	glPopMatrix();
 	glFlush(); 
@@ -501,11 +511,17 @@ void calculateFPS()
     }
 }
 
-void drawFPS(char* format, ...)
+void drawText(int x, int y, char* format, ...)
 {
-    //  Load the identity matrix so that FPS string being drawn
-    //  won't get animates
-	//glLoadIdentity ();
+	glPushAttrib(GL_ALL_ATTRIB_BITS);
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluOrtho2D(0.0, GLUT_WINDOW_WIDTH, 0.0, GLUT_WINDOW_HEIGHT);
+	
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
 
 	//  Print the FPS to the window
 	va_list args;
@@ -531,7 +547,8 @@ void drawFPS(char* format, ...)
 	va_end(args);
 
 	//  Specify the raster position for pixel operations.
-	glRasterPos2f (0.9, 0.9);
+	glRasterPos2i(x, y);
+	//glRasterPos2f ((float) glutGet(GLUT_WINDOW_WIDTH), (float) glutGet(GLUT_WINDOW_HEIGHT));
 
 	//  Draw the characters one by one
     for (i = 0; text[i] != '\0'; i++)
@@ -539,6 +556,13 @@ void drawFPS(char* format, ...)
 
 	//  Free the allocated memory for the string
 	free(text);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glPopAttrib();
 }
 
 void reshape(int iWidth, int iHeight)
@@ -563,7 +587,10 @@ void keyboard(unsigned char c, int iXPos, int iYPos)
 		camInputTravel(g_Input, tri_neg);
 		break;
 	case 'a':
-		pushTail(createNewPlanet());
+		addPlanet(1);
+		break;
+	case 'q':
+		removePlanet(1);
 		break;
 	}
 
@@ -719,11 +746,22 @@ void calculateForces()
         currentPlanet->m_afStartVel[2] = currentPlanet->m_afStartVel[2] * 0.99999f;
 
 		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
-
+		//resolve any collisions
 		currentPlanet = currentPlanet->m_pNext;
 		if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
 			calculateCollision(collidedPlanet, collidedOtherPlanet);
 		}
+		//if planet has gone too far from the star or lost all acceleration then remove from the simulation
+		//float fDist = 0.0f;
+		//float afDir[4];
+		//vecInit(afDir);
+		//vecSub(g_pHead->m_afStartPos, currentPlanet->m_afStartPos, afDir);
+		//fDist = vecNormalise(afDir, afDir);
+		//if(currentPlanet != 0 && fDist > 500000 || vecLength(currentPlanet->m_afAcceleration) == 0.0f)
+		//{
+		//	remove(currentPlanet);
+		//	deletePlanet(currentPlanet);
+		//}
 	}
 }
 
@@ -732,44 +770,48 @@ void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet)
 	if(currentOtherPlanet ->m_iPlanetId != 0)
 	{
 		printf("planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
-		planet *pPlanet=new planet;
+		//lastEvent = "planet " + currentPlanet->m_iPlanetId + " collided with planet " + currentOtherPlanet->m_iPlanetId + "!";
+		//drawText(5, 0, "planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
+		//planet *pPlanet=new planet;
 
-		pPlanet -> m_pPrev = 0;
-		pPlanet -> m_pNext = 0;
-		pPlanet -> m_plpHead = 0;
-		pPlanet -> m_plpTail = 0;
-		pPlanet -> m_fMass = currentPlanet->m_fMass + currentOtherPlanet->m_fMass;
-		vecInitPVec(pPlanet->m_afCol);
-		vecSet(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
-		pPlanet -> m_afStartPos[0] = (currentPlanet ->m_afStartPos[0] + currentOtherPlanet ->m_afStartPos[0]) / 2;
-		pPlanet -> m_afStartPos[1] = (currentPlanet ->m_afStartPos[1] + currentOtherPlanet ->m_afStartPos[1]) / 2;
-		pPlanet -> m_afStartPos[2] = (currentPlanet ->m_afStartPos[2] + currentOtherPlanet ->m_afStartPos[2]) / 2;
-		pPlanet -> m_afStartPos[3] = 0;
-		vecInit(pPlanet->m_afEndPos);
-		pPlanet -> m_afForce[0] = (currentPlanet ->m_afForce[0] + currentOtherPlanet ->m_afForce[0]) / 2;
-		pPlanet -> m_afForce[1] = (currentPlanet ->m_afForce[1] + currentOtherPlanet ->m_afForce[1]) / 2;
-		pPlanet -> m_afForce[2] = (currentPlanet ->m_afForce[2] + currentOtherPlanet ->m_afForce[2]) / 2;
-		pPlanet -> m_afForce[3] = 0;
-		pPlanet -> m_afAcceleration[0] = (currentPlanet ->m_afAcceleration[0] + currentOtherPlanet ->m_afAcceleration[0]) / 2;
-		pPlanet -> m_afAcceleration[1] = (currentPlanet ->m_afAcceleration[1] + currentOtherPlanet ->m_afAcceleration[1]) / 2;
-		pPlanet -> m_afAcceleration[2] = (currentPlanet ->m_afAcceleration[2] + currentOtherPlanet ->m_afAcceleration[2]) / 2;
-		pPlanet -> m_afAcceleration[3] = 0;
-		pPlanet -> m_iPlanetId = g_currentPlanetId;
-		pPlanet -> m_plpHead = 0;
-		pPlanet -> m_plpTail = 0;
+		//pPlanet -> m_pPrev = 0;
+		//pPlanet -> m_pNext = 0;
+		//pPlanet -> m_plpHead = 0;
+		//pPlanet -> m_plpTail = 0;
+		currentPlanet -> m_fMass += currentOtherPlanet->m_fMass;
+		//vecInitPVec(pPlanet->m_afCol);
+		//(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
+		currentPlanet -> m_afStartPos[0] = (currentPlanet ->m_afStartPos[0] + currentOtherPlanet ->m_afStartPos[0]) / 2;
+		currentPlanet -> m_afStartPos[1] = (currentPlanet ->m_afStartPos[1] + currentOtherPlanet ->m_afStartPos[1]) / 2;
+		currentPlanet -> m_afStartPos[2] = (currentPlanet ->m_afStartPos[2] + currentOtherPlanet ->m_afStartPos[2]) / 2;
+		currentPlanet -> m_afStartPos[3] = 0;
+		//vecInit(pPlanet->m_afEndPos);
+		currentPlanet -> m_afForce[0] = (currentPlanet ->m_afForce[0] + currentOtherPlanet ->m_afForce[0]) / 2;
+		currentPlanet -> m_afForce[1] = (currentPlanet ->m_afForce[1] + currentOtherPlanet ->m_afForce[1]) / 2;
+		currentPlanet -> m_afForce[2] = (currentPlanet ->m_afForce[2] + currentOtherPlanet ->m_afForce[2]) / 2;
+		//currentPlanet -> m_afForce[3] = 0;
+		currentPlanet -> m_afAcceleration[0] = (currentPlanet ->m_afAcceleration[0] + currentOtherPlanet ->m_afAcceleration[0]) / 2;
+		currentPlanet -> m_afAcceleration[1] = (currentPlanet ->m_afAcceleration[1] + currentOtherPlanet ->m_afAcceleration[1]) / 2;
+		currentPlanet -> m_afAcceleration[2] = (currentPlanet ->m_afAcceleration[2] + currentOtherPlanet ->m_afAcceleration[2]) / 2;
+		//pPlanet -> m_afAcceleration[3] = 0;
+		//pPlanet -> m_iPlanetId = g_currentPlanetId;
+		//pPlanet -> m_plpHead = 0;
+		//pPlanet -> m_plpTail = 0;
 
-		g_currentPlanetId++;
+		//g_currentPlanetId++;
 		//add new merged planet to the list of planets
-		pushTail(pPlanet);
+		//pushTail(pPlanet);
 		//remove the two colliding planets
-		remove(currentPlanet);
-		deletePlanet(currentPlanet);
+		//remove(currentPlanet);
+		//deletePlanet(currentPlanet);
 		remove(currentOtherPlanet);
 		deletePlanet(currentOtherPlanet);
 	}
 	else
 	{
 		printf("planet %d collided with the sun and was burnt to a crisp! The planet is no more.\n", currentPlanet->m_iPlanetId);
+		//lastEvent = "planet " + currentPlanet->m_iPlanetId + " collided with planet " + currentOtherPlanet->m_iPlanetId + "!";
+		//drawText(5, 0, "planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
 		currentOtherPlanet -> m_fMass += currentPlanet -> m_fMass;
 		remove(currentPlanet);
 		deletePlanet(currentPlanet);
@@ -845,6 +887,49 @@ void applyAccelToVel()
 	}
 }
 
+void addPlanet(int amount)
+{
+	for(int count = 0; count < amount; count++)
+	{
+		pushTail(createNewPlanet());
+	}
+}
+
+void removePlanet(int amount)
+{
+	for(int count = 0; count < amount; count++)
+	{
+		if(g_pHead != g_pTail) // When tail equals the head only the star is left which can't be removed
+			deletePlanet(popTail());
+	}
+}
+
+void setTotalPlanets(int amount)
+{
+	if(amount > g_currentPlanetCount)
+	{
+		addPlanet(amount - g_currentPlanetCount);
+	}
+	else
+	{
+		removePlanet(g_currentPlanetCount - amount);
+	}
+}
+
+void saveModelState()
+{
+	FILE *file = fopen("output.solar", "wb");
+	if (file != NULL) {
+		planet *currentPlanet = g_pHead;
+		while(currentPlanet)
+		{
+			fwrite(currentPlanet, sizeof(*currentPlanet), 1, file);
+			currentPlanet = currentPlanet -> m_pNext;
+		}
+		fclose(file);
+	}
+}
+
 void menu(int op)
 {
 	switch(op) {
@@ -855,6 +940,16 @@ void menu(int op)
 		case speedNormal: skipTicks = 1000 / ticksPerSecond; break;
 		case speedFast: skipTicks = 1000 / (ticksPerSecond * 2); break;
 		case speedFaster: skipTicks = 1000 / (ticksPerSecond * 4); break;
+		case addTenPlanets: addPlanet(10); break;
+		case addTwentyPlanets: addPlanet(20); break;
+		case addFortyPlanets: addPlanet(40); break;
+		case removeTenPlanets: removePlanet(10); break;
+		case removeTwentyPlanets: removePlanet(20); break;
+		case removeFortyPlanets: removePlanet(40); break;
+		case setFiftyPlanets: setTotalPlanets(50); break;
+		case setHundredPlanets: setTotalPlanets(100); break;
+		case setHundredFiftyPlanets: setTotalPlanets(150); break;
+		case saveState: saveModelState(); break;
 	}
 }
 
@@ -867,13 +962,22 @@ void myInit()
 
 	pushHead(createNewStar());
 
-	for(int count = 0; count < 10; count++)
-	{
-		pushTail(createNewPlanet());
-	}
+	addPlanet(10);
 
 	calculateMotion = true;
 
+	int setPlanetCountSubMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("50", setFiftyPlanets);
+	glutAddMenuEntry("100", setHundredPlanets);
+	glutAddMenuEntry("150", setHundredFiftyPlanets);
+	int removePlanetSubMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("-10", removeTenPlanets);
+	glutAddMenuEntry("-20", removeTwentyPlanets);
+	glutAddMenuEntry("-40", removeFortyPlanets);
+	int addPlanetSubMenu = glutCreateMenu(menu);
+	glutAddMenuEntry("+10", addTenPlanets);
+	glutAddMenuEntry("+20", addTwentyPlanets);
+	glutAddMenuEntry("+40", addFortyPlanets);
 	int simSpeedSubMenu = glutCreateMenu(menu);
 	glutAddMenuEntry("Normal (1x)", speedNormal);
 	glutAddMenuEntry("Fast (2x)", speedFast);
@@ -884,8 +988,12 @@ void myInit()
 	glutAddMenuEntry("Long", tailLong);
 	int mainMenu = glutCreateMenu(menu);
 	glutAddMenuEntry("Toggle Motion", toggleMotion);
+	glutAddMenuEntry("Save State",saveState);
 	glutAddSubMenu("Tail Length", tailLengthSubMenu);
 	glutAddSubMenu("Sim. Speed", simSpeedSubMenu);
+	glutAddSubMenu("Add Planets", addPlanetSubMenu);
+	glutAddSubMenu("Remove Planets", removePlanetSubMenu);
+	glutAddSubMenu("Set Planet Count", setPlanetCountSubMenu);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
 	//float afGridColour[]={1.0f, 0.1f, 0.3f, 1.0f};
