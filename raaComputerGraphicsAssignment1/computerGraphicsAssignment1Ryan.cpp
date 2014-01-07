@@ -666,6 +666,9 @@ void calculateForces()
 {
 	float afBigF[4];
 	planet *currentPlanet = g_pHead;
+	float fDist = 0.0f;
+		float afDir[4];
+		vecInit(afDir);
 	currentPlanet = currentPlanet->m_pNext; //skip the star
 	while(currentPlanet)
 	{
@@ -747,21 +750,34 @@ void calculateForces()
 
 		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
 		//resolve any collisions
-		currentPlanet = currentPlanet->m_pNext;
+		//currentPlanet = currentPlanet->m_pNext;
+		//if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
+		//	calculateCollision(collidedPlanet, collidedOtherPlanet);
+		//}
+		//if planet has gone too far from the star or lost all acceleration then remove from the simulation
+		
+		vecSub(g_pHead->m_afStartPos, currentPlanet->m_afStartPos, afDir);
+		fDist = vecNormalise(afDir, afDir);
+		if(currentPlanet != 0 && collidedPlanet == 0 && fDist > 350000 || vecLength(currentPlanet->m_afAcceleration) == 0.0f)
+		{
+			printf("planet %d removed from sim.\n", currentPlanet->m_iPlanetId);
+			planet *nextPlanet = currentPlanet->m_pNext;
+			remove(currentPlanet);
+			deletePlanet(currentPlanet);
+			currentPlanet = nextPlanet;
+		}
+		else
+		{
+			currentPlanet = currentPlanet->m_pNext;
+		}
 		if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
+			if(currentPlanet == collidedOtherPlanet)
+			{
+				//move pointer to next planet as the collided planet will be removed
+				currentPlanet = currentPlanet->m_pNext;
+			}
 			calculateCollision(collidedPlanet, collidedOtherPlanet);
 		}
-		//if planet has gone too far from the star or lost all acceleration then remove from the simulation
-		//float fDist = 0.0f;
-		//float afDir[4];
-		//vecInit(afDir);
-		//vecSub(g_pHead->m_afStartPos, currentPlanet->m_afStartPos, afDir);
-		//fDist = vecNormalise(afDir, afDir);
-		//if(currentPlanet != 0 && fDist > 500000 || vecLength(currentPlanet->m_afAcceleration) == 0.0f)
-		//{
-		//	remove(currentPlanet);
-		//	deletePlanet(currentPlanet);
-		//}
 	}
 }
 
