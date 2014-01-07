@@ -57,7 +57,6 @@ struct planet
 	float m_afStartPos[4]; //x,y,z,0
 	float m_afEndPos[4]; //x,y,z,0
 	float m_afForce[4]; //x,y,z,0
-	//float m_afForce;
 	float m_afAcceleration[4]; //x,y,z,0
 	int m_iPlanetId;
 	planetLinePoint *m_plpHead;
@@ -77,11 +76,7 @@ void sKeyboardUp(int iC, int iXPos, int iYPos);
 void mouse(int iKey, int iEvent, int iXPos, int iYPos);
 void mouseMotion();
 void myInit();
-void calculatePosition();
-void calculateVelocity();
-void calculateAcceleration();
 void calculateForces(); 
-void applyAccelToVel();
 void calculateFPS();
 void drawText(int x, int y, char* format, ...);
 void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet);
@@ -134,7 +129,6 @@ planet* createNewPlanet()
 	vecSet(0.0f, 1.0f, 0.0f, vUp);
 
 	// initialise data
-	//pPlanet->m_fSize = randFloat(50.0f, 100.0f);
 	vecInit(pPlanet->m_afEndVel);
 	pPlanet->m_fMass = randFloat(140.0f,150.0f);
 	pPlanet->m_fSize = pPlanet->m_fMass;
@@ -147,16 +141,11 @@ planet* createNewPlanet()
 
 	vecSub(vStart, pPlanet->m_afStartPos, vDir);
 	vecNormalise(vDir, vDir);
-	//vecCrossProduct(vDir, vUp, pPlanet->m_afStartVel);
 	vecNormalise(pPlanet->m_afStartVel, pPlanet->m_afStartVel);
 	vecScalarProduct(pPlanet->m_afStartVel, randFloat(-700.0f, 800.0f), pPlanet->m_afStartVel);
 
-
-
-	//pPlanet->m_afForce = randFloat(-100.0f, 100.0f);
 	vecInit(pPlanet->m_afForce);
-	//vecSet(randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), randFloat(-50.0f, 50.0f), pPlanet->m_afForce);
-	//vecSet(50000.0f, 50000.0f, 50000.0f, pPlanet->m_afForce);
+
 	vecInit(pPlanet->m_afAcceleration);
 
 	pPlanet->m_iPlanetId = g_currentPlanetId;
@@ -175,7 +164,6 @@ planet* createNewStar()
 	pStar -> m_pNext = 0;
 
 	// initialise data
-	//pStar->m_fSize = 500.0f;
 	vecInit(pStar->m_afStartVel);
 	vecInit(pStar->m_afEndVel);
 	pStar->m_fMass = 90000.0f;
@@ -185,7 +173,6 @@ planet* createNewStar()
 	pStar->m_afCol[3] = 1.0f;
 	vecInit(pStar->m_afStartPos); // set to world centre
 	vecInit(pStar->m_afEndPos);
-	//pStar->m_afForce = 0.0f;
 	vecInit(pStar->m_afForce);
 	vecInit(pStar->m_afAcceleration);
 	pStar->m_iPlanetId = g_currentPlanetId;
@@ -217,7 +204,6 @@ planet* deletePlanet(planet *pPlanet)
 		pPlanet->m_fMass = 0;
 		vecInitDVec(pPlanet->m_afCol);
 		vecInitDVec(pPlanet->m_afStartPos);
-		//pPlanet->m_afForce = 0;
 		vecInitDVec(pPlanet->m_afForce);
 
 		// free up memory
@@ -429,8 +415,6 @@ void display()
 	{
 		planetLinePoint *currentPoint = currentPlanet ->m_plpHead;
 		drawSphere(currentPlanet->m_fSize, 20, 20, currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2], currentPlanet->m_afCol);
-		//float *fArray = (float*)malloc(tailMaxLength * sizeof(float));//(int*)calloc(tailMaxLength, sizeof(float));
-		//float tail[6000] = {0};
 		int tailLength = 0;
 		if(currentPlanet != g_pHead) //skip star
 		{
@@ -440,20 +424,14 @@ void display()
 			{
 					fColourArray[tailLength] = currentPlanet -> m_afCol[0];
 					fArray[tailLength++] = currentPoint ->m_fPoint[0];
-					//printf("%f", fArray[tailLength-1]);
 					fColourArray[tailLength] = currentPlanet -> m_afCol[1];
 					fArray[tailLength++] = currentPoint ->m_fPoint[1];
-					//printf("%f", fArray[tailLength-1]);
 					fColourArray[tailLength] = currentPlanet -> m_afCol[2];
 					fArray[tailLength++] = currentPoint ->m_fPoint[2];
-					//printf("%f", fArray[tailLength-1]);
 					currentPoint = currentPoint -> m_plpNext;
 					if((tailLength+3)/3 > tailMaxLength)
-					{ // remove head every time over the max length to maintain fixed size tail
+					{
 						break;
-						//currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
-						//delete currentPlanet -> m_plpHead -> m_plpPrev;
-						//currentPlanet -> m_plpHead -> m_plpPrev = 0;
 					}
 			}
 
@@ -476,37 +454,11 @@ void display()
 					}
 		}
 
-		//if(currentPlanet -> m_pPrev != 0) //skip star
-		//{
-		//	int tailLength = 0;
-		//	glPushAttrib(GL_ALL_ATTRIB_BITS);
-		//	glBegin(GL_LINE_STRIP);
-		//	glEnable(GL_BLEND);
-		//	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, currentPlanet->m_afCol);
-		//	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 5.0f);
-		//	glBlendFunc (GL_ONE, GL_ZERO);
-		//	while(currentPoint)
-		//	{
-		//		glVertex3f(currentPoint->m_fPoint[0], currentPoint->m_fPoint[1], currentPoint->m_fPoint[2]);		
-		//		currentPoint = currentPoint -> m_plpNext;
-		//		tailLength++;
-		//		if(tailLength > tailMaxLength) { // remove head every time over the max length to maintain fixed size tail
-		//			currentPlanet -> m_plpHead = currentPlanet -> m_plpHead -> m_plpNext;
-		//			delete currentPlanet -> m_plpHead -> m_plpPrev;
-		//			currentPlanet -> m_plpHead -> m_plpPrev = 0;
-		//		}
-		//	}
-		//	glDisable(GL_BLEND);
-		//	glEnd();
-		//	glPopAttrib();
-		//}
-		//free((void*) fArray);
 		currentPlanet = currentPlanet->m_pNext;
 	}
 
 	drawText(5, 10, "FPS: %4.2f", fps);
 	drawText(5, 5, "Planets: %d", g_currentPlanetCount);
-	//drawText(5, 0, "%s", lastEvent);
 
 	glPopMatrix();
 	glFlush(); 
@@ -521,10 +473,6 @@ void idle()
 	{
 		if(calculateMotion) {
 			calculateForces();
-			//calculateAcceleration();
-			//calculatePosition();
-			//calculateVelocity();
-			//applyAccelToVel();
 		}
 		nextGameTick = skipTicks + glutGet(GLUT_ELAPSED_TIME);
 		loops++;
@@ -535,25 +483,14 @@ void idle()
 
 void calculateFPS()
 {
-	 //  Increase frame count
     frameCount++;
- 
-    //  Get the number of milliseconds since glutInit called
-    //  (or first call to glutGet(GLUT ELAPSED TIME)).
     currentTime = glutGet(GLUT_ELAPSED_TIME);
- 
-    //  Calculate time passed
     int timeInterval = currentTime - previousTime;
  
     if(timeInterval > 1000)
     {
-        //  calculate the number of frames per second
         fps = frameCount / (timeInterval / 1000.0f);
- 
-        //  Set time
         previousTime = currentTime;
- 
-        //  Reset frame count
         frameCount = 0;
     }
 }
@@ -570,38 +507,23 @@ void drawText(int x, int y, char* format, ...)
 	glPushMatrix();
 	glLoadIdentity();
 
-	//  Print the FPS to the window
+	//  Print the text to the window
 	va_list args;
 	int len;
 	int i;
 	char * text;
-	//char* format = "FPS: %4.2f";
 
-	//  Initialize a variable argument list
 	va_start(args, format);
-
-	//  Return the number of characters in the string referenced the list of arguments.
-	//  _vscprintf doesn't count terminating '\0' (that's why +1)
 	len = _vscprintf(format, args) + 1; 
-
-	//  Allocate memory for a string of the specified size
 	text = (char *)malloc(len * sizeof(char));
-
-	//  Write formatted output using a pointer to the list of arguments
 	vsprintf_s(text, len, format, args);
-
-	//  End using variable argument list 
 	va_end(args);
 
-	//  Specify the raster position for pixel operations.
 	glRasterPos2i(x, y);
-	//glRasterPos2f ((float) glutGet(GLUT_WINDOW_WIDTH), (float) glutGet(GLUT_WINDOW_HEIGHT));
 
-	//  Draw the characters one by one
     for (i = 0; text[i] != '\0'; i++)
         glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text[i]);
 
-	//  Free the allocated memory for the string
 	free(text);
 
 	glMatrixMode(GL_MODELVIEW);
@@ -720,12 +642,10 @@ void calculateForces()
 	while(currentPlanet)
 	{
 		vecInitDVec(afBigF);
-		//vecCopy(currentPlanet->m_afForce, afBigF);
 		float fLittleF;
 		planet *currentOtherPlanet = g_pHead;
 		planet *collidedPlanet = 0;
 		planet *collidedOtherPlanet = 0;
-		//currentOtherPlanet = currentOtherPlanet->m_pNext; //skip the star
 		while(currentOtherPlanet)
 		{
 			float afVecResult[4];
@@ -735,19 +655,11 @@ void calculateForces()
 			vecInit(afVDir);
 			vecSet(0.0f, 1.0f, 0.0f, vUp);
 			if(currentPlanet != currentOtherPlanet) {
-				//vecSub(currentPlanet->m_afStartPos, currentOtherPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
-				vecSub(currentOtherPlanet->m_afStartPos, currentPlanet->m_afStartPos, afVDir); // distance between the 2 bodies
-				fVDist = vecNormalise(afVDir, afVDir); // don't need vec  afVecResult
-
-				//vecCrossProduct(afVDir, vUp, currentPlanet->m_afStartVel);//
-				//vecNormalise(currentPlanet->m_afStartVel, currentPlanet->m_afStartVel);//
-
+				vecSub(currentOtherPlanet->m_afStartPos, currentPlanet->m_afStartPos, afVDir);
+				fVDist = vecNormalise(afVDir, afVDir); // distance between the 2 bodies
 				fLittleF = GRAVITY * ((currentPlanet->m_fMass * currentOtherPlanet->m_fMass) / (fVDist * fVDist));
-				//vecScalarProduct(currentPlanet->m_afStartVel, fLittleF, currentPlanet->m_afStartVel);//
-				vecScalarProduct(afVDir, fLittleF, afVDir); //maybe some cros product stuff here to calculate vector direction?
+				vecScalarProduct(afVDir, fLittleF, afVDir);
 				vecAdd(afBigF, afVDir, afBigF);
-				//vecSet(afResult, afResult, afResult, afLittleF); // problem applying forces somewhere here
-				//vecAdd(afBigF, afLittleF, afBigF);
 				if(fVDist < currentOtherPlanet->m_fSize) {
 					collidedPlanet = currentPlanet;
 					collidedOtherPlanet = currentOtherPlanet;
@@ -758,7 +670,6 @@ void calculateForces()
 		}
 
 		vecCopy(afBigF, currentPlanet->m_afForce);
-		//vecAdd(currentPlanet->m_afForce, afBigF, currentPlanet->m_afForce);
 
 		currentPlanet->m_afAcceleration[0] = currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
 		currentPlanet->m_afAcceleration[1] = currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
@@ -771,14 +682,10 @@ void calculateForces()
 		vecInit(afVelResult);
 		vecScalarProduct(currentPlanet->m_afStartVel, TIME, afVelResult); // ut
 		vecScalarProduct(currentPlanet->m_afAcceleration, TIME*TIME, afResult); // at
-//		vecVectorProduct(afResult, afResult, afResult); // at squared
 		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
 		vecAdd(afVelResult, afResult, afResult); // ut + at
 		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afEndPos); //s = p + the rest
-		//memcpy( currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, sizeof( float ) * 4 );//currentPlanet->m_afEndVele //+ (vecAdd(currentPlanet->m_afEndVel, (0.5f * (0 * (TIME * TIME)))));
 
-
-//		float afResult[4];
 		vecSub(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, afResult); // s-p
 		afResult[0] = afResult[0] / TIME;
 		afResult[1] = afResult[1] / TIME;
@@ -796,12 +703,6 @@ void calculateForces()
         currentPlanet->m_afStartVel[2] = currentPlanet->m_afStartVel[2] * 0.99999f;
 
 		pushPlanetLineTail(currentPlanet, createNewPlanetLinePoint(currentPlanet->m_afStartPos[0], currentPlanet->m_afStartPos[1], currentPlanet->m_afStartPos[2]));
-		//resolve any collisions
-		//currentPlanet = currentPlanet->m_pNext;
-		//if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
-		//	calculateCollision(collidedPlanet, collidedOtherPlanet);
-		//}
-		//if planet has gone too far from the star or lost all acceleration then remove from the simulation
 		
 		vecSub(g_pHead->m_afStartPos, currentPlanet->m_afStartPos, afDir);
 		fDist = vecNormalise(afDir, afDir);
@@ -817,6 +718,7 @@ void calculateForces()
 		{
 			currentPlanet = currentPlanet->m_pNext;
 		}
+		//resolve any collisions
 		if(collidedPlanet != 0 && collidedOtherPlanet != 0) {
 			if(currentPlanet == collidedOtherPlanet)
 			{
@@ -833,120 +735,29 @@ void calculateCollision(planet* currentPlanet, planet* currentOtherPlanet)
 	if(currentOtherPlanet ->m_iPlanetId != 0)
 	{
 		printf("planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
-		//lastEvent = "planet " + currentPlanet->m_iPlanetId + " collided with planet " + currentOtherPlanet->m_iPlanetId + "!";
-		//drawText(5, 0, "planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
-		//planet *pPlanet=new planet;
 
-		//pPlanet -> m_pPrev = 0;
-		//pPlanet -> m_pNext = 0;
-		//pPlanet -> m_plpHead = 0;
-		//pPlanet -> m_plpTail = 0;
 		currentPlanet -> m_fMass += currentOtherPlanet->m_fMass;
-		//vecInitPVec(pPlanet->m_afCol);
-		//(randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),randFloat(0.0f, 1.0f),pPlanet->m_afCol);
 		currentPlanet -> m_afStartPos[0] = (currentPlanet ->m_afStartPos[0] + currentOtherPlanet ->m_afStartPos[0]) / 2;
 		currentPlanet -> m_afStartPos[1] = (currentPlanet ->m_afStartPos[1] + currentOtherPlanet ->m_afStartPos[1]) / 2;
 		currentPlanet -> m_afStartPos[2] = (currentPlanet ->m_afStartPos[2] + currentOtherPlanet ->m_afStartPos[2]) / 2;
 		currentPlanet -> m_afStartPos[3] = 0;
-		//vecInit(pPlanet->m_afEndPos);
 		currentPlanet -> m_afForce[0] = (currentPlanet ->m_afForce[0] + currentOtherPlanet ->m_afForce[0]) / 2;
 		currentPlanet -> m_afForce[1] = (currentPlanet ->m_afForce[1] + currentOtherPlanet ->m_afForce[1]) / 2;
 		currentPlanet -> m_afForce[2] = (currentPlanet ->m_afForce[2] + currentOtherPlanet ->m_afForce[2]) / 2;
-		//currentPlanet -> m_afForce[3] = 0;
 		currentPlanet -> m_afAcceleration[0] = (currentPlanet ->m_afAcceleration[0] + currentOtherPlanet ->m_afAcceleration[0]) / 2;
 		currentPlanet -> m_afAcceleration[1] = (currentPlanet ->m_afAcceleration[1] + currentOtherPlanet ->m_afAcceleration[1]) / 2;
 		currentPlanet -> m_afAcceleration[2] = (currentPlanet ->m_afAcceleration[2] + currentOtherPlanet ->m_afAcceleration[2]) / 2;
-		//pPlanet -> m_afAcceleration[3] = 0;
-		//pPlanet -> m_iPlanetId = g_currentPlanetId;
-		//pPlanet -> m_plpHead = 0;
-		//pPlanet -> m_plpTail = 0;
 
-		//g_currentPlanetId++;
-		//add new merged planet to the list of planets
-		//pushTail(pPlanet);
-		//remove the two colliding planets
-		//remove(currentPlanet);
-		//deletePlanet(currentPlanet);
 		remove(currentOtherPlanet);
 		deletePlanet(currentOtherPlanet);
 	}
 	else
 	{
 		printf("planet %d collided with the sun and was burnt to a crisp! The planet is no more.\n", currentPlanet->m_iPlanetId);
-		//lastEvent = "planet " + currentPlanet->m_iPlanetId + " collided with planet " + currentOtherPlanet->m_iPlanetId + "!";
-		//drawText(5, 0, "planet %d collided with planet %d!\n", currentPlanet->m_iPlanetId, currentOtherPlanet->m_iPlanetId);
+
 		currentOtherPlanet -> m_fMass += currentPlanet -> m_fMass;
 		remove(currentPlanet);
 		deletePlanet(currentPlanet);
-	}
-}
-
-void calculatePosition()
-{
-	//s=p+(ut+1/2(at)squared)
-	
-	planet *currentPlanet = g_pHead;
-	while(currentPlanet)
-	{
-		float afResult[4];
-		float afVelResult[4];
-		vecInit(afResult);
-		vecInit(afVelResult);
-		vecScalarProduct(currentPlanet->m_afStartVel, TIME, afVelResult); // ut
-		vecScalarProduct(currentPlanet->m_afAcceleration, TIME*TIME, afResult); // at
-//		vecVectorProduct(afResult, afResult, afResult); // at squared
-		vecScalarProduct(afResult, 0.5f, afResult); // 0.5 * at squared
-		vecAdd(afVelResult, afResult, afResult); // ut + at
-		vecAdd(currentPlanet->m_afStartPos, afResult, currentPlanet->m_afEndPos); //s = p + the rest
-		//memcpy( currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, sizeof( float ) * 4 );//currentPlanet->m_afEndVele //+ (vecAdd(currentPlanet->m_afEndVel, (0.5f * (0 * (TIME * TIME)))));
-
-		currentPlanet = currentPlanet->m_pNext;
-	}
-}
-
-void calculateVelocity()
-{
-	planet *currentPlanet = g_pHead;
-	while(currentPlanet)
-	{
-		//v= (s-p)/t
-		float afResult[4];
-		vecSub(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos, afResult); // s-p
-		afResult[0] = afResult[0] / TIME;
-		afResult[1] = afResult[1] / TIME;
-		afResult[2] = afResult[2] / TIME;
-		vecCopy(afResult, currentPlanet->m_afStartVel);
-
-		vecCopy(currentPlanet->m_afEndPos, currentPlanet->m_afStartPos); // after all calculations have finished set old pos to new pos
-
-		currentPlanet = currentPlanet->m_pNext;
-	}
-}
-
-void calculateAcceleration()
-{
-	planet *currentPlanet = g_pHead;
-	while(currentPlanet)
-	{
-		//vecNormalise(currentPlanet->m_afForce, &currentPlanet->m_fMass, currentPlanet->m_afAcceleration);
-		currentPlanet->m_afAcceleration[0] = currentPlanet->m_afForce[0] / currentPlanet->m_fMass;
-		currentPlanet->m_afAcceleration[1] = currentPlanet->m_afForce[1] / currentPlanet->m_fMass;
-		currentPlanet->m_afAcceleration[2] = currentPlanet->m_afForce[2] / currentPlanet->m_fMass;
-
-		currentPlanet = currentPlanet->m_pNext;
-	}
-}
-
-void applyAccelToVel()
-{
-	planet *currentPlanet = g_pHead;
-	while(currentPlanet)
-	{
-		currentPlanet->m_afStartVel[0] += currentPlanet->m_afAcceleration[0];
-		currentPlanet->m_afStartVel[1] += currentPlanet->m_afAcceleration[1];
-		currentPlanet->m_afStartVel[2] += currentPlanet->m_afAcceleration[2];
-
-		currentPlanet = currentPlanet->m_pNext;
 	}
 }
 
@@ -1059,9 +870,6 @@ void myInit()
 	glutAddSubMenu("Set Planet Count", setPlanetCountSubMenu);
 	glutAttachMenu(GLUT_RIGHT_BUTTON);
 
-	//float afGridColour[]={1.0f, 0.1f, 0.3f, 1.0f};
-	//gridInit(g_ulGrid, afGridColour, -50, 50, 500.0f);
-
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHT0);
@@ -1089,10 +897,6 @@ int main(int argc, char* argv[])
 	glutSpecialUpFunc(sKeyboardUp);
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
-
-
-
-
 
 	glutMainLoop();
 
